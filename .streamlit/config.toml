@@ -1,0 +1,30 @@
+# RELAY theme. Keeps Streamlit's native widget internals (selects, date pickers,
+# dropdown menus, dataframes) aligned with the design system in app/theme.py
+# instead of following the viewer's OS dark-mode preference.
+
+[theme]
+base = "light"
+primaryColor = "#EA580C"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F8FA"
+textColor = "#1D2939"
+linkColor = "#EA580C"
+borderColor = "#E4E7EC"
+showWidgetBorder = true
+baseRadius = "medium"
+font = "Inter, -apple-system, Segoe UI, sans-serif"
+
+# The workspace sidebar is the one dark surface in the product.
+[theme.sidebar]
+base = "dark"
+backgroundColor = "#0B1220"
+secondaryBackgroundColor = "#111A2B"
+textColor = "#E7EAF0"
+borderColor = "rgba(255,255,255,0.10)"
+primaryColor = "#EA580C"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

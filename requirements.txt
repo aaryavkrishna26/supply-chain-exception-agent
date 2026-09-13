@@ -1,0 +1,25 @@
+# Core Database & Persistence
+supabase>=2.3.0
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.30
+pydantic>=2.7.0
+python-dotenv>=1.0.1
+
+# AI & Orchestration (for Day 2+)
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-groq>=0.2.0
+langchain-openai>=0.2.0
+
+# UI & Visualization (for Day 4+)
+streamlit>=1.35.0
+plotly>=5.22.0
+pandas>=2.2.2
+
+# Operational data (Kaggle datasets, see data/DATA_SOURCES.md)
+kagglehub>=0.3.0
+
+# Testing & Utilities
+pytest>=8.2.0
+pytest-asyncio>=0.23.7
+tabulate>=0.9.0
