@@ -10,6 +10,7 @@ import re
 import json
 import uuid
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, TypedDict
 
@@ -435,6 +436,51 @@ def _ground_replenishment(params: Dict[str, Any], live_ctx: Dict[str, Any]) -> O
     return grounded
 
 
+def _fetch_shipment_context(shipment_id: str) -> Dict[str, Any]:
+    """Independent lookup: shipment plus its alternative carriers/routes."""
+    result: Dict[str, Any] = {"shipment": None, "alternative_carriers": [], "alternative_routes": []}
+    shipment = SupplyChainQueries.get_shipment(shipment_id)
+    result["shipment"] = shipment
+    if shipment:
+        result["alternative_carriers"] = SupplyChainQueries.find_alternative_carrier(
+            exclude_carrier_id=shipment.get("carrier_id"),
+            min_reliability=0.88
+        )
+        if shipment.get("origin_location") and shipment.get("destination_location"):
+            result["alternative_routes"] = SupplyChainQueries.find_alternative_route(
+                origin=shipment["origin_location"],
+                destination=shipment["destination_location"],
+                exclude_route_id=shipment.get("route_id")
+            )
+    return result
+
+
+def _fetch_order_context(order_id: str) -> Dict[str, Any]:
+    """Independent lookup: order plus its customer."""
+    result: Dict[str, Any] = {"order": None, "customer": None}
+    order = SupplyChainQueries.get_order(order_id)
+    result["order"] = order
+    if order and order.get("customer_id"):
+        result["customer"] = SupplyChainQueries.get_customer(order["customer_id"])
+    return result
+
+
+def _fetch_po_context(po_id: str) -> Dict[str, Any]:
+    """Independent lookup: purchase order plus its supplier and alternative suppliers."""
+    result: Dict[str, Any] = {"purchase_order": None, "supplier": None, "alternative_suppliers": []}
+    po = SupplyChainQueries.get_purchase_order(po_id)
+    result["purchase_order"] = po
+    if po:
+        supplier = SupplyChainQueries.get_supplier(po["supplier_id"])
+        result["supplier"] = supplier
+        result["alternative_suppliers"] = SupplyChainQueries.find_alternative_supplier(
+            category=supplier.get("category") if supplier else None,
+            exclude_supplier_id=po.get("supplier_id"),
+            min_reliability=0.85
+        )
+    return result
+
+
 def gather_resolution_context_node(state: ResolutionState) -> Dict[str, Any]:
     """
     Retrieve live operational database context to ground resolution options
@@ -457,58 +503,56 @@ def gather_resolution_context_node(state: ResolutionState) -> Dict[str, Any]:
         "alternative_suppliers": [],
     }
 
-    # 1. Shipment, Carrier & Route Context (resolve first to unlock linked orders/POs)
+    # 1-3. Shipment, Order, and Purchase-Order context are independent lookups whenever
+    # the exception already carries its own FKs (the common case) — run them concurrently
+    # over separate pooled connections instead of one-at-a-time.
     shipment_id = exc.get("shipment_id") or inv_res.get("shipment_id")
-    if shipment_id:
-        shipment = SupplyChainQueries.get_shipment(shipment_id)
-        live_context["shipment"] = shipment
-        if shipment:
-            alt_carriers = SupplyChainQueries.find_alternative_carrier(
-                exclude_carrier_id=shipment.get("carrier_id"),
-                min_reliability=0.88
-            )
-            live_context["alternative_carriers"] = alt_carriers
-            if shipment.get("origin_location") and shipment.get("destination_location"):
-                alt_routes = SupplyChainQueries.find_alternative_route(
-                    origin=shipment["origin_location"],
-                    destination=shipment["destination_location"],
-                    exclude_route_id=shipment.get("route_id")
-                )
-                live_context["alternative_routes"] = alt_routes
-
-    # 2. Order & Customer Context
     order_id = exc.get("order_id") or inv_res.get("order_id")
-    if not order_id and live_context.get("shipment"):
-        order_id = live_context["shipment"].get("order_id")
-    if order_id:
-        order = SupplyChainQueries.get_order(order_id)
-        live_context["order"] = order
-        if order and order.get("customer_id"):
-            customer = SupplyChainQueries.get_customer(order["customer_id"])
-            live_context["customer"] = customer
-
-    # 3. Purchase Order & Supplier Context
     po_id = exc.get("purchase_order_id") or inv_res.get("purchase_order_id")
-    if not po_id and live_context.get("shipment"):
-        po_id = live_context["shipment"].get("purchase_order_id")
-    if not po_id and exc.get("category") == "PROCUREMENT":
-        resolved_po = SupplyChainQueries.resolve_purchase_order(exception_id=exc_id)
-        if resolved_po:
-            po_id = resolved_po["id"]
 
-    if po_id:
-        po = SupplyChainQueries.get_purchase_order(po_id)
-        live_context["purchase_order"] = po
-        if po:
-            supplier = SupplyChainQueries.get_supplier(po["supplier_id"])
-            live_context["supplier"] = supplier
-            alt_suppliers = SupplyChainQueries.find_alternative_supplier(
-                category=supplier.get("category") if supplier else None,
-                exclude_supplier_id=po.get("supplier_id"),
-                min_reliability=0.85
-            )
-            live_context["alternative_suppliers"] = alt_suppliers
-    elif exc.get("category") == "PROCUREMENT":
+    jobs = {}
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        if shipment_id:
+            jobs["shipment"] = pool.submit(_fetch_shipment_context, shipment_id)
+        if order_id:
+            jobs["order"] = pool.submit(_fetch_order_context, order_id)
+        if po_id:
+            jobs["po"] = pool.submit(_fetch_po_context, po_id)
+        results = {name: future.result() for name, future in jobs.items()}
+
+    if "shipment" in results:
+        live_context["shipment"] = results["shipment"]["shipment"]
+        live_context["alternative_carriers"] = results["shipment"]["alternative_carriers"]
+        live_context["alternative_routes"] = results["shipment"]["alternative_routes"]
+
+    if "order" in results:
+        live_context["order"] = results["order"]["order"]
+        live_context["customer"] = results["order"]["customer"]
+    elif not order_id and live_context.get("shipment"):
+        # Order id was only discoverable via the shipment we just fetched.
+        fallback_order_id = live_context["shipment"].get("order_id")
+        if fallback_order_id:
+            ctx = _fetch_order_context(fallback_order_id)
+            live_context["order"] = ctx["order"]
+            live_context["customer"] = ctx["customer"]
+
+    if "po" in results:
+        live_context["purchase_order"] = results["po"]["purchase_order"]
+        live_context["supplier"] = results["po"]["supplier"]
+        live_context["alternative_suppliers"] = results["po"]["alternative_suppliers"]
+    elif not po_id and live_context.get("shipment"):
+        po_id = live_context["shipment"].get("purchase_order_id")
+        if not po_id and exc.get("category") == "PROCUREMENT":
+            resolved_po = SupplyChainQueries.resolve_purchase_order(exception_id=exc_id)
+            if resolved_po:
+                po_id = resolved_po["id"]
+        if po_id:
+            ctx = _fetch_po_context(po_id)
+            live_context["purchase_order"] = ctx["purchase_order"]
+            live_context["supplier"] = ctx["supplier"]
+            live_context["alternative_suppliers"] = ctx["alternative_suppliers"]
+
+    if not po_id and exc.get("category") == "PROCUREMENT":
         for text in [exc.get("exception_code"), exc.get("title"), exc.get("description")]:
             if text:
                 for s in SupplyChainQueries.list_suppliers():
@@ -944,12 +988,13 @@ def synthesize_resolution_node(state: ResolutionState) -> Dict[str, Any]:
     persisted_options: List[ResolutionOption] = []
     recommended_opt: Optional[ResolutionOption] = None
     alternatives: List[ResolutionOption] = []
+    db_records: List[Dict[str, Any]] = []
 
     for opt in options:
         opt_id = f"OPT-{uuid.uuid4().hex[:8].upper()}"
         is_rec = (opt["option_name"] == rec_name) or (recommended_opt is None and opt == options[0])
-        
-        # Prepare DB record
+
+        # Prepare DB record (persisted below in a single batch insert)
         db_record = {
             "id": opt_id,
             "exception_id": exc_id,
@@ -968,9 +1013,7 @@ def synthesize_resolution_node(state: ResolutionState) -> Dict[str, Any]:
             "is_selected": False,
             "parameters": opt.get("parameters", {})
         }
-
-        # Persist to Supabase resolution_options table
-        ExceptionQueries.add_resolution_option(db_record)
+        db_records.append(db_record)
 
         model_opt = ResolutionOption(
             id=opt_id,
@@ -1005,6 +1048,9 @@ def synthesize_resolution_node(state: ResolutionState) -> Dict[str, Any]:
             "The resolution agent produced no candidate options for this exception, "
             "so there is nothing to recommend. Re-run the investigation and try again."
         )
+
+    # Persist all candidate options in a single round-trip instead of one INSERT each.
+    ExceptionQueries.add_resolution_options(db_records)
 
     # Update exception status to PENDING_APPROVAL
     ExceptionQueries.update_exception_status(

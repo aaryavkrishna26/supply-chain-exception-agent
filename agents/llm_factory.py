@@ -44,7 +44,9 @@ def get_groq_llm(model: Optional[str] = None) -> Optional[Any]:
     try:
         from langchain_groq import ChatGroq
         selected_model = model or os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
-        return ChatGroq(model=selected_model, temperature=0.1, api_key=groq_key)
+        # max_retries=0 + a short timeout: a rate-limited or slow call should fail over
+        # to the deterministic reasoner immediately instead of retrying with backoff.
+        return ChatGroq(model=selected_model, temperature=0.1, api_key=groq_key, max_retries=0, timeout=15)
     except Exception as e:
         logger.warning(f"Failed to initialize ChatGroq: {e}")
         return None

@@ -168,7 +168,7 @@ def render_exceptions_page(role: str = "BUYER") -> None:
     options, recommendation, meta = _resolution_stage(exc, selected_id, inv_key, res_key)
     if options:
         exc = _approval_stage(exc, selected_id, options, recommendation, meta, exec_key, can_decide)
-        _verification_stage(selected_id, exec_key)
+        _verification_stage(exc, selected_id, exec_key)
     _trace_stage(exc)
 
 
@@ -209,9 +209,16 @@ def _overview_card(exc: Dict[str, Any]) -> None:
 def _investigation_stage(exc: Dict[str, Any], exception_id: str, inv_key: str) -> Dict[str, Any]:
     section("1 · Cross-functional investigation", "The agent chooses which records matter")
 
+    finalized = exc.get("status") in ("RESOLVED", "REJECTED")
     run, status = st.columns([1, 3])
     with run:
-        clicked = st.button("Run investigation", type="primary", width="stretch")
+        clicked = st.button(
+            "Run investigation",
+            type="primary",
+            width="stretch",
+            disabled=finalized,
+            help="This exception is finalized; re-investigating would reopen a closed case." if finalized else None,
+        )
     if clicked:
         with st.spinner("Reading shipments, orders, inventory, suppliers and capacity…"):
             try:
@@ -295,14 +302,19 @@ def _resolution_stage(
     section("2 · Resolution options", "Scored on cost, time to effect and operational risk")
 
     investigated = bool(st.session_state.get(inv_key)) or bool(exc.get("root_cause"))
+    finalized = exc.get("status") in ("RESOLVED", "REJECTED")
     run, status = st.columns([1, 3])
     with run:
         clicked = st.button(
             "Generate resolutions",
-            type="primary" if investigated else "secondary",
+            type="primary" if investigated and not finalized else "secondary",
             width="stretch",
-            disabled=not investigated,
-            help=None if investigated else "Run the investigation first",
+            disabled=not investigated or finalized,
+            help=(
+                "This exception is finalized; regenerating would reopen a closed case."
+                if finalized
+                else (None if investigated else "Run the investigation first")
+            ),
         )
     if clicked:
         with st.spinner("Costing alternatives against supplier capacity, carriers and stock…"):
@@ -551,7 +563,13 @@ def _approval_stage(
 # Stage 6/7 — execution and verification
 # ---------------------------------------------------------------------------
 
-def _verification_stage(exception_id: str, exec_key: str) -> None:
+def _verification_stage(exc: Dict[str, Any], exception_id: str, exec_key: str) -> None:
+    # Only the current decision cycle's execution belongs here — an exception that has
+    # been re-investigated or re-resolved since a prior approval carries stale action rows
+    # that would otherwise be shown next to a fresh, still-pending approval gate.
+    if exc.get("status") != "RESOLVED":
+        return
+
     try:
         past = ExceptionQueries.get_actions_for_exception(exception_id) or []
     except Exception:

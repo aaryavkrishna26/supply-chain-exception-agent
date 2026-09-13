@@ -105,6 +105,34 @@ class ExceptionQueries:
         return data["id"]
 
     @staticmethod
+    def add_resolution_options(records: List[Dict[str, Any]]) -> List[str]:
+        """Insert multiple resolution options in a single round-trip instead of one INSERT per option."""
+        if not records:
+            return []
+        db = get_db()
+        prepared = []
+        for data in records:
+            row = dict(data)
+            if isinstance(row.get("parameters"), dict):
+                row["parameters"] = json.dumps(row["parameters"])
+            prepared.append(row)
+        sql = """
+            INSERT INTO resolution_options (
+                id, exception_id, option_name, action_type, description,
+                estimated_cost, expected_time_hours, inventory_impact, customer_impact,
+                operational_risk, feasibility, confidence_score, reasoning,
+                is_recommended, is_selected, parameters
+            ) VALUES (
+                :id, :exception_id, :option_name, :action_type, :description,
+                :estimated_cost, :expected_time_hours, :inventory_impact, :customer_impact,
+                :operational_risk, :feasibility, :confidence_score, :reasoning,
+                :is_recommended, :is_selected, :parameters
+            )
+        """
+        db.execute_many(sql, prepared)
+        return [row["id"] for row in prepared]
+
+    @staticmethod
     def record_action(data: Dict[str, Any]) -> str:
         db = get_db()
         if isinstance(data.get("payload"), dict):

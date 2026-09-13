@@ -14,7 +14,7 @@ logger = logging.getLogger("investigation_service")
 class InvestigationService:
 
     @staticmethod
-    def investigate(exception_id_or_code: str, max_steps: int = 6) -> InvestigationResult:
+    def investigate(exception_id_or_code: str, max_steps: int = 4) -> InvestigationResult:
         """
         Execute an agentic investigation for a given exception using LangGraph.
         Loads the exception from Supabase, runs the dynamic tool loop, performs root cause

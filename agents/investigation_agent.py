@@ -86,7 +86,7 @@ def load_exception_node(state: InvestigationState) -> Dict[str, Any]:
         "tools_used": [],
         "tool_results": {},
         "step_count": 0,
-        "max_steps": state.get("max_steps", 6),
+        "max_steps": state.get("max_steps", 4),
         "confidence": 0.90,
         "investigation_complete": False
     }

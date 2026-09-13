@@ -25,6 +25,7 @@ primaryColor = "#EA580C"
 
 [server]
 headless = true
+runOnSave = true
 
 [browser]
 gatherUsageStats = false

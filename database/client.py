@@ -147,6 +147,18 @@ class DatabaseClient:
             result = conn.execute(stmt, params or {})
             return result.rowcount if hasattr(result, "rowcount") else 0
 
+    def execute_many(self, sql: str, params_list: List[Dict[str, Any]]) -> int:
+        """Execute the same INSERT/UPDATE statement for many parameter sets in one round-trip."""
+        if not self.engine:
+            raise RuntimeError("Database engine is not initialized. Check Supabase connection settings.")
+        if not params_list:
+            return 0
+
+        with self.engine.begin() as conn:
+            stmt = text(sql)
+            result = conn.execute(stmt, params_list)
+            return result.rowcount if hasattr(result, "rowcount") else len(params_list)
+
     def initialize_schema(self, schema_file: Optional[str] = None):
         """Apply the PostgreSQL DDL schema directly to the database."""
         if not schema_file:
