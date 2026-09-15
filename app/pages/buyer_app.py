@@ -17,6 +17,7 @@ from app.pages.audit import render_audit_page
 from app.pages.exceptions import render_exceptions_page
 from app.pages.profile import render_profile_page
 from app.shell import goto, render_account_bar, render_sidebar
+from services.ml_prediction_service import MLPredictionService
 from app.ui import (
     Col,
     badge,
@@ -269,6 +270,127 @@ def _overview() -> None:
         section("Stock lines at or below reorder point", f"{len(low)} lines")
         st.markdown(_inventory_table(low[:6]), unsafe_allow_html=True)
 
+    _ml_insights(shipments)
+
+
+def _ml_insights(shipments: list) -> None:
+    """
+    ML Insights section: scores all in-flight shipments with the delay
+    predictor and surfaces a risk distribution chart + high-risk count KPI.
+    """
+    active = [
+        s for s in shipments
+        if s.get("status") in ("CREATED", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELAYED", "REROUTED")
+    ]
+    if not active:
+        return
+
+    # Score each shipment (fast — uses cached model)
+    scored = []
+    for s in active:
+        try:
+            result = MLPredictionService.predict_delay_risk(s)
+            scored.append({
+                **s,
+                "ml_probability": result["probability"],
+                "ml_risk_label": result["risk_label"],
+                "ml_model": result["model"],
+            })
+        except Exception:
+            pass
+
+    if not scored:
+        return
+
+    high_risk   = [s for s in scored if s["ml_risk_label"] == "HIGH"]
+    medium_risk = [s for s in scored if s["ml_risk_label"] == "MEDIUM"]
+    low_risk    = [s for s in scored if s["ml_risk_label"] == "LOW"]
+    model_type  = scored[0]["ml_model"] if scored else "heuristic"
+
+    section(
+        "ML Delay Risk Insights",
+        f"Predictive model ({model_type}) scores {len(scored)} active shipments",
+    )
+
+    kpi_row(
+        [
+            {
+                "label": "High Risk",
+                "value": len(high_risk),
+                "meta": "Probability > 70%",
+                "tone": "critical" if high_risk else None,
+            },
+            {
+                "label": "Medium Risk",
+                "value": len(medium_risk),
+                "meta": "Probability 40–70%",
+                "tone": "warning" if medium_risk else None,
+            },
+            {
+                "label": "Low Risk",
+                "value": len(low_risk),
+                "meta": "Probability < 40%",
+                "tone": "good" if low_risk else None,
+            },
+            {
+                "label": "Avg Risk Score",
+                "value": format_percent(
+                    (sum(s["ml_probability"] for s in scored) / len(scored)) * 100
+                ),
+                "meta": "Across fleet",
+            },
+        ]
+    )
+
+    # Risk distribution chart
+    try:
+        import plotly.graph_objects as go
+        buckets = {
+            "0–20%":  sum(1 for s in scored if s["ml_probability"] < 0.20),
+            "20–40%": sum(1 for s in scored if 0.20 <= s["ml_probability"] < 0.40),
+            "40–60%": sum(1 for s in scored if 0.40 <= s["ml_probability"] < 0.60),
+            "60–80%": sum(1 for s in scored if 0.60 <= s["ml_probability"] < 0.80),
+            "80–100%":sum(1 for s in scored if s["ml_probability"] >= 0.80),
+        }
+        colors = ["#22c55e", "#86efac", "#f59e0b", "#f97316", "#ef4444"]
+        fig = go.Figure(
+            go.Bar(
+                x=list(buckets.keys()),
+                y=list(buckets.values()),
+                marker_color=colors,
+                text=list(buckets.values()),
+                textposition="outside",
+            )
+        )
+        fig.update_layout(
+            margin=dict(l=0, r=0, t=8, b=0),
+            height=220,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            yaxis=dict(showgrid=False, visible=False),
+            xaxis=dict(title="Delay Probability Bucket"),
+            showlegend=False,
+        )
+        left_chart, right_table = st.columns([1.4, 1])
+        with left_chart:
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        with right_table:
+            if high_risk:
+                section("Highest-risk shipments", f"Top {min(5, len(high_risk))} by ML score")
+                rows_html = "".join(
+                    f'<tr><td style="font-family:monospace;font-size:.78rem">{s.get("shipment_number","—")}</td>'
+                    f'<td style="color:#ef4444;font-weight:700;text-align:right">{s["ml_probability"]:.0%}</td></tr>'
+                    for s in sorted(high_risk, key=lambda x: x["ml_probability"], reverse=True)[:5]
+                )
+                st.markdown(
+                    f'<table style="width:100%;border-collapse:collapse;font-size:.82rem">'
+                    f'<thead><tr><th style="text-align:left;color:#6b7280;padding-bottom:.3rem">Shipment</th>'
+                    f'<th style="text-align:right;color:#6b7280;padding-bottom:.3rem">Risk</th></tr></thead>'
+                    f'<tbody>{rows_html}</tbody></table>',
+                    unsafe_allow_html=True,
+                )
+    except Exception as chart_err:
+        st.caption(f"Chart unavailable: {chart_err}")
 
 def _provenance() -> None:
     sources = data.data_sources()

@@ -15,6 +15,7 @@ from typing import Any, Dict, List
 from database.client import get_db
 from database.queries.exceptions import ExceptionQueries
 from services.audit_service import AuditService
+from services.ml_prediction_service import MLPredictionService
 
 logger = logging.getLogger("exception_detector")
 
@@ -43,9 +44,16 @@ class ExceptionDetector:
         1. Are explicitly marked as DELAYED or EXCEPTION.
         2. Have passed expected_delivery_date without DELIVERED status.
         3. Have actual_delivery_date > expected_delivery_date.
+
+        ML Enhancement: Each active shipment is also scored by the
+        MLPredictionService. Shipments with a predicted delay probability
+        > 0.70 that have not yet crossed the deadline receive a proactive
+        PREDICTED_DELIVERY_DELAY exception so the agent can act early.
         """
         new_exceptions = []
-        sql = """
+
+        # --- Rule-based: already delayed / past deadline ---
+        sql_delayed = """
             SELECT s.*, c.name as carrier_name, o.order_number, o.priority as order_priority, o.customer_id,
                    o.total_amount AS order_value, po.total_cost AS po_value
             FROM shipments s
@@ -55,7 +63,7 @@ class ExceptionDetector:
             WHERE s.status IN ('DELAYED', 'EXCEPTION')
                OR (s.status NOT IN ('DELIVERED', 'CANCELLED') AND s.expected_delivery_date < CURRENT_TIMESTAMP)
         """
-        rows = self.db.execute_query(sql)
+        rows = self.db.execute_query(sql_delayed)
 
         for row in rows:
             # Check if active exception already exists for this shipment
@@ -66,6 +74,15 @@ class ExceptionDetector:
             if existing:
                 continue
 
+            # --- ML Risk Score ---
+            ml_result = MLPredictionService.predict_delay_risk(row)
+            ml_prob   = ml_result["probability"]
+            ml_label  = ml_result["risk_label"]
+            ml_source = ml_result["model"]
+            ml_note   = (
+                f" | ML Delay Risk: {ml_label} ({ml_prob:.0%}, model={ml_source})"
+            )
+
             exc_id = f"EXC-LOG-{uuid.uuid4().hex[:6].upper()}"
             is_critical_order = row.get("order_priority") in ("HIGH", "CRITICAL")
             severity = "CRITICAL" if is_critical_order else ("HIGH" if row.get("delay_hours", 0) > 12 else "MEDIUM")
@@ -75,7 +92,7 @@ class ExceptionDetector:
             desc = (
                 f"Shipment {row['shipment_number']} from {row['origin_location']} to {row['destination_location']} "
                 f"is delayed by approx {row.get('delay_hours', 0)} hours. Current location: {row.get('current_location') or 'not reported'}. "
-                f"Notes: {row.get('tracking_notes') or 'none recorded'}."
+                f"Notes: {row.get('tracking_notes') or 'none recorded'}.{ml_note}"
             )
 
             record = {
@@ -105,11 +122,102 @@ class ExceptionDetector:
                 exception_id=exc_id,
                 agent_step="DETECTION",
                 tool_called="detect_shipment_delays",
-                input_payload={"shipment_id": row["id"]},
+                input_payload={"shipment_id": row["id"], "ml_risk": ml_result},
                 output_payload=record,
-                decision=f"Flagged {severity} logistics exception for shipment {row['shipment_number']}"
+                decision=f"Flagged {severity} logistics exception for shipment {row['shipment_number']} (ML risk={ml_label} {ml_prob:.0%})"
             )
             new_exceptions.append(record)
+
+        # --- ML Proactive: high-risk shipments not yet overdue ---
+        new_exceptions.extend(self._detect_predicted_delays())
+
+        return new_exceptions
+
+    def _detect_predicted_delays(self) -> List[Dict[str, Any]]:
+        """
+        Query active shipments that are still within their delivery window
+        and flag any whose ML-predicted delay probability exceeds 70%.
+        These become PREDICTED_DELIVERY_DELAY exceptions so the agent can
+        act before the deadline is missed.
+        """
+        new_exceptions = []
+        sql = """
+            SELECT s.*, c.name as carrier_name, o.order_number, o.priority as order_priority, o.customer_id,
+                   o.total_amount AS order_value, po.total_cost AS po_value
+            FROM shipments s
+            JOIN carriers c ON s.carrier_id = c.id
+            LEFT JOIN orders o ON s.order_id = o.id
+            LEFT JOIN purchase_orders po ON s.purchase_order_id = po.id
+            WHERE s.status IN ('CREATED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY')
+              AND (s.expected_delivery_date IS NULL OR s.expected_delivery_date >= CURRENT_TIMESTAMP)
+            LIMIT 200
+        """
+        rows = self.db.execute_query(sql)
+        for row in rows:
+            ml_result = MLPredictionService.predict_delay_risk(row)
+            if ml_result["probability"] < 0.70:
+                continue
+
+            # Skip if a predicted-delay exception already exists
+            existing = self.db.execute_query(
+                "SELECT id FROM exceptions WHERE shipment_id = :sid "
+                "AND exception_type = 'PREDICTED_DELIVERY_DELAY' "
+                "AND status IN ('OPEN', 'INVESTIGATING', 'PENDING_APPROVAL')",
+                {"sid": row["id"]}
+            )
+            if existing:
+                continue
+
+            ml_prob  = ml_result["probability"]
+            ml_label = ml_result["risk_label"]
+            ml_source = ml_result["model"]
+
+            exc_id = f"EXC-PML-{uuid.uuid4().hex[:6].upper()}"
+            title = (
+                f"Predicted Delay Risk: {row['shipment_number']} "
+                f"({row.get('carrier_name', 'Carrier')}) — {ml_label} ({ml_prob:.0%})"
+            )
+            desc = (
+                f"ML model ({ml_source}) predicts a {ml_prob:.0%} probability of delay for "
+                f"shipment {row['shipment_number']} travelling from {row['origin_location']} "
+                f"to {row['destination_location']}. The shipment is still within its delivery "
+                f"window — proactive action is recommended to prevent an SLA breach."
+            )
+
+            record = {
+                "id": exc_id,
+                "exception_code": f"EXP-PML-{row['shipment_number']}",
+                "category": "LOGISTICS",
+                "exception_type": "PREDICTED_DELIVERY_DELAY",
+                "severity": "HIGH" if ml_prob >= 0.85 else "MEDIUM",
+                "status": "OPEN",
+                "order_id": row.get("order_id"),
+                "shipment_id": row["id"],
+                "purchase_order_id": row.get("purchase_order_id"),
+                "warehouse_id": None,
+                "product_id": None,
+                "title": title,
+                "description": desc,
+                "estimated_financial_loss": (
+                    float(row.get("order_value") or row.get("po_value") or 0.0) * 0.10
+                    or float(row.get("shipping_cost") or 0.0) * 1.0
+                ),
+            }
+
+            ExceptionQueries.create_exception(record)
+            AuditService.log_step(
+                exception_id=exc_id,
+                agent_step="DETECTION",
+                tool_called="ml_predict_delay",
+                input_payload={"shipment_id": row["id"], "ml_result": ml_result},
+                output_payload=record,
+                decision=f"Proactive ML flag: {row['shipment_number']} has {ml_prob:.0%} delay probability"
+            )
+            new_exceptions.append(record)
+            logger.info(
+                "[ML] Proactive exception created for shipment %s (prob=%.2f, model=%s)",
+                row["shipment_number"], ml_prob, ml_source,
+            )
 
         return new_exceptions
 

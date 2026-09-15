@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RELAY | Supply Chain Exception Agent | PBL 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+
+        body {
+            background-color: #020617;
+            color: #f8fafc;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            scroll-behavior: smooth;
+            font-size: 18px;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gradient-text {
+            background: linear-gradient(90deg, #60a5fa, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* TIMER UI - FIXED CONTRAST */
+        #timerContainer {
+            background: #ffffff;
+            color: #020617;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            border: 3px solid #3b82f6;
+            z-index: 1000;
+        }
+
+        @keyframes flicker {
+
+            0%,
+            100% {
+                background-color: #ffffff;
+            }
+
+            50% {
+                background-color: #fca5a5;
+            }
+        }
+
+        .timer-warning {
+            animation: flicker 1s infinite;
+            border: 3px solid #ef4444 !important;
+            color: #b91c1c !important;
+        }
+
+        .timer-stop {
+            background-color: #991b1b !important;
+            color: #ffffff !important;
+            border: 3px solid #f87171 !important;
+            animation: none;
+        }
+
+        /* Metric pulse animation */
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 5px rgba(16, 185, 129, 0.2);
+            }
+
+            50% {
+                box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+            }
+        }
+
+        .metric-highlight {
+            animation: pulse-glow 3s ease-in-out infinite;
+        }
+
+        /* Confusion matrix styling */
+        .cm-cell {
+            transition: transform 0.2s ease;
+        }
+
+        .cm-cell:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="timerContainer"
+        class="fixed bottom-10 right-10 px-8 py-4 rounded-3xl flex items-center gap-4 transition-all"
+        style="background: #ffffff; color: #020617; box-shadow: 0 10px 40px rgba(0,0,0,0.8); border: 3px solid #3b82f6; z-index: 1000;">
+        <i class="fas fa-hourglass-start text-blue-600 text-2xl" id="timerIcon"></i>
+        <span id="displayTime" class="text-4xl font-black font-mono tracking-tighter">00:00</span>
+    </div>
+
+    <nav class="fixed w-full z-50 glass border-b border-slate-800/50 px-8 py-4 flex justify-between items-center">
+        <div class="flex items-center gap-4">
+            <div class="bg-white p-1 rounded flex items-center justify-center shadow-md"
+                style="height: 48px; width: 48px;">
+                <img src="mujlogo.jpg" alt="MUJ" class="h-full w-auto object-contain"
+                    onerror="this.src='https://via.placeholder.com/50?text=MUJ'">
+            </div>
+            <div class="flex flex-col text-left">
+                <span class="text-xl font-black text-white leading-none uppercase tracking-tighter">PBL <span
+                        class="text-blue-500 italic">2026</span></span>
+                <span class="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Dept. of Computer Science
+                    & Engineering</span>
+            </div>
+        </div>
+        <div class="hidden md:flex gap-8 text-sm uppercase tracking-widest font-bold opacity-70">
+            <a href="#problem" class="hover:text-blue-400 transition">Problem</a>
+            <a href="#methodology" class="hover:text-blue-400 transition">Methodology</a>
+            <a href="#results" class="hover:text-blue-400 transition">Results</a>
+            <a href="#features" class="hover:text-blue-400 transition">Features</a>
+            <a href="#team" class="hover:text-blue-400 transition">Team</a>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-6 pt-48 pb-32 space-y-32">
+
+        <!-- HERO SECTION -->
+        <section class="text-center">
+            <div
+                class="inline-block px-4 py-1 border border-slate-800 rounded-full text-slate-500 text-xs font-mono mb-6 uppercase tracking-widest">
+                PROJECT ID: RELAY-SCEA-2026</div>
+            <h1 class="text-7xl md:text-8xl font-extrabold mb-8 uppercase leading-tight"><span
+                    class="gradient-text uppercase">RELAY: Autonomous Supply Chain Exception Resolution Agent</span></h1>
+            <p
+                class="text-slate-300 max-w-3xl mx-auto text-lg leading-relaxed border-l-4 border-blue-500 pl-6 text-left">
+                <strong class="text-white font-semibold">RELAY</strong> is an autonomous <strong class="text-blue-400 font-semibold">Agentic AI platform</strong> built to detect, investigate, and resolve supply chain disruptions across Procurement, Logistics, and Inventory in real time.<br />
+                By evaluating operational trade-offs, RELAY delivers optimal resolutions, enforces human approval for high-risk actions, and commits verified database updates.
+            </p>
+        </section>
+
+        <!-- PROBLEM STATEMENT & LITERATURE REVIEW -->
+        <section id="problem" class="grid md:grid-cols-2 gap-12 items-stretch">
+            <div class="glass p-12 rounded-[2.5rem] flex flex-col justify-center border-l-4 border-blue-600">
+                <h2 class="text-4xl font-extrabold mb-8">The Problem Statement</h2>
+                <div class="space-y-6 text-slate-300 text-base leading-relaxed text-left">
+                    <div>
+                        <span class="text-blue-400 font-bold uppercase text-xs tracking-wider block mb-1">1. The Real-World Disruption</span>
+                        <p>Supply chains face daily unexpected disruptions: shipments get stuck in transit, suppliers miss promised delivery dates, and warehouses run out of stock. These delays trigger severe cascading delays down to the end-customer.</p>
+                    </div>
+                    <div>
+                        <span class="text-yellow-400 font-bold uppercase text-xs tracking-wider block mb-1">2. Why Traditional ERPs Fail</span>
+                        <p>Existing systems use rigid, hardcoded rules like <em>"if delayed &rarr; reroute shipment"</em>. They cannot check whether a nearby warehouse already has spare inventory, or if expedited freight is cheaper than switching vendors.</p>
+                    </div>
+                    <div>
+                        <span class="text-red-400 font-bold uppercase text-xs tracking-wider block mb-1">3. The Manual Investigation Bottleneck</span>
+                        <p>Managers must manually inspect disconnected spreadsheets and databases across procurement, transportation, and inventory—wasting 4+ hours per exception and causing expensive errors.</p>
+                    </div>
+                    <div>
+                        <span class="text-green-400 font-bold uppercase text-xs tracking-wider block mb-1">4. The RELAY Solution: Autonomous Agentic AI</span>
+                        <p>RELAY introduces an autonomous <strong class="text-white">Agentic AI system</strong> that dynamically investigates and resolves supply chain disruptions across Procurement, Logistics, and Inventory, executing verified database updates and enforcing human approval for high-risk actions.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="space-y-6">
+                <div class="glass p-8 rounded-3xl border-r-4 border-blue-500/50">
+                    <h3 class="text-blue-400 font-bold text-base uppercase tracking-widest mb-4">Literature Review</h3>
+                    <p class="text-base text-slate-300 leading-relaxed space-y-3">
+                        Modern supply chain resilience and automated disruption management build upon key developments across operational research and Agentic AI:
+                        <br /><br />
+                        <strong class="text-white">1. Supply Chain Visibility (Ivanov et al., 2021):</strong><br />
+                        Demonstrated that disruptions ripple rapidly across operational silos. Mitigating delays requires concurrent visibility across procurement, inventory, and logistics rather than isolated local fixes.
+                        <br /><br />
+                        <strong class="text-white">2. Goal-Driven Autonomous Agents (Russell & Norvig, 2020):</strong><br />
+                        Established that complex environments require autonomous perception-action cycles, where agents dynamically inspect the environment state and execute goal-directed steps.
+                        <br /><br />
+                        <strong class="text-white">3. Tool-Augmented LLMs (Schick et al., 2023 / Toolformer):</strong><br />
+                        Proved that connecting language models to structured database tools eliminates hallucination, allowing AI to safely inspect live inventory and purchase orders.
+                        <br /><br />
+                        <strong class="text-white">4. Stateful Agent Graphs (LangGraph, 2024 / Wu et al., 2023):</strong><br />
+                        Introduced cyclic state graphs that separate multi-step reasoning into specialized Investigation and Resolution agents with state persistence and reversible workflows.
+                        <br /><br />
+                        <strong class="text-white">5. Human-in-the-Loop Operations:</strong><br />
+                        Operations research demonstrates that high-impact actions (e.g., supplier switching, expensive express reroutes) must incorporate human authorization gates before execution.
+                    </p>
+                </div>
+                <div class="glass p-8 rounded-3xl border-r-4 border-purple-500/50">
+                    <h3 class="text-purple-400 font-bold text-base uppercase tracking-widest mb-4">Research Gap & Key Innovations</h3>
+                    <ul class="text-base text-slate-300 space-y-3">
+                        <li>• <strong class="text-white">Agentic AI (LangGraph & Grok API):</strong> Replaces static <code>IF-THEN</code> ERP scripts with dynamic multi-agent reasoning.</li>
+                        <li>• <strong class="text-white">Predictive Machine Learning:</strong> Predicts stockouts, scores supplier reliability, and optimizes buyer expenditure.</li>
+                        <li>• <strong class="text-white">Cross-Silo Intelligence:</strong> Automatically queries Procurement, Logistics, and Inventory in one flow.</li>
+                        <li>• <strong class="text-white">Real Action Execution:</strong> Executes verified PostgreSQL database updates instead of generating text advice.</li>
+                        <li>• <strong class="text-white">Multi-Criteria Scoring:</strong> Evaluates options across Cost (₹), Resolution Time, Risk, and Feasibility.</li>
+                        <li>• <strong class="text-white">Human Approval Gate:</strong> Prevents unauthorized high-cost actions through interactive manager sign-off.</li>
+                        <li>• <strong class="text-white">Full Audit Traceability:</strong> Records every tool call, reasoning step, and state mutation in an immutable log.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- SYSTEM METHODOLOGY & ARCHITECTURE -->
+        <section id="methodology" class="space-y-12">
+            <h2 class="text-5xl font-black text-center uppercase tracking-tight">System <span
+                    class="text-blue-500">Methodology</span></h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Relational Data -->
+                <div class="glass p-8 rounded-3xl text-center">
+                    <i class="fas fa-database text-blue-500 text-4xl mb-6"></i>
+                    <h3 class="font-bold mb-4 uppercase text-base tracking-widest">1. Relational Database</h3>
+                    <p class="text-base text-slate-300 leading-relaxed text-left">
+                        <strong class="text-blue-400">PostgreSQL (Supabase) as Single Truth:</strong><br />
+                        Built upon 16 interconnected operational tables without disconnected spreadsheets.<br /><br />
+                        <strong class="text-slate-400">Interconnected Core Entities:</strong><br />
+                        • Customers, Products, Warehouses, Suppliers<br />
+                        • Orders, Order Items, Inventory, Routes, Carriers<br />
+                        • Purchase Orders, Shipments, Exceptions, Audit Logs<br /><br />
+                        <strong class="text-slate-400">Realistic Synthetic Scale:</strong><br />
+                        1,000+ Orders • 300+ Shipments • 100 Products • 10 Regional Hubs • 20 Suppliers • 10 Carriers<br /><br />
+                        <strong class="text-purple-400">Key Advantage:</strong><br />
+                        Every customer order traces directly to its shipment, assigned carrier, warehouse stock, and supplier PO.
+                    </p>
+                </div>
+                <!-- 3-Phase Agentic Workflow -->
+                <div class="glass p-8 rounded-3xl text-center">
+                    <i class="fas fa-microchip text-purple-500 text-4xl mb-6"></i>
+                    <h3 class="font-bold mb-4 uppercase text-base tracking-widest">2. 3-Phase Agentic Workflow</h3>
+                    <p class="text-base text-slate-300 leading-relaxed text-left space-y-4">
+                        <span class="block"><strong class="text-purple-400">Phase 1 — Deterministic Detection:</strong><br />Factual SQL queries verify delivery dates against SLAs and detect inventory stockouts with 100% precision—zero LLM hallucination.</span>
+                        <br />
+                        <span class="block"><strong class="text-blue-400">Phase 2 — LangGraph & Grok API Investigation:</strong><br />Orchestrated via LangGraph, specialized agents use the Grok API LLM to dynamically call 15+ database tools across procurement, logistics, and inventory to uncover the root cause.</span>
+                        <br />
+                        <span class="block"><strong class="text-green-400">Phase 3 — Predictive ML & Execution:</strong><br />Integrates ML models (stockout forecasting, vendor reliability scoring, buyer cost reduction), requests human approval for high-risk actions, and commits live database updates.</span>
+                    </p>
+                </div>
+                <!-- Live System Stack -->
+                <div class="glass p-8 rounded-3xl text-center border-2 border-green-500/20 bg-green-500/5">
+                    <i class="fab fa-python text-green-500 text-4xl mb-6"></i>
+                    <h3 class="font-bold mb-4 uppercase text-base tracking-widest text-green-400">3. Live System Stack</h3>
+                    <p class="text-base text-slate-400 mb-4">Streamlit Web Application connected to LangGraph Orchestrator & PostgreSQL
+                    </p>
+                    <a href="http://localhost:8501"
+                        target="_blank"
+                        class="px-8 py-4 bg-green-600 rounded-full text-sm font-black hover:bg-green-500 transition shadow-lg shadow-green-900/40 inline-block">LAUNCH STREAMLIT APP</a>
+
+                    <div class="mt-6 text-left space-y-2 text-sm text-slate-400">
+                        <p><strong class="text-slate-300">Core Architecture Components:</strong></p>
+                        <code class="block bg-black/30 p-3 rounded-lg text-green-400 leading-relaxed">
+                            AI Engine: Grok API LLM (Fast Reasoning)<br/>
+                            Orchestrator: LangGraph Stateful Multi-Agent Graph<br/>
+                            Predictive ML: Stockout Forecast, Supplier Reliability & Cost Optimization<br/>
+                            Database: Supabase Hosted PostgreSQL<br/>
+                            UI: Streamlit Buyer & Supplier Workspaces<br/>
+                            Tools: 15+ Specialized Domain Tool Handlers<br/>
+                            Execution & Audit: Transactional SQL + Step-by-Step Logger
+                        </code>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Architecture Pipeline -->
+            <div class="mt-16">
+                <h3 class="text-slate-300 font-bold text-base uppercase tracking-widest mb-8 text-center"><i
+                        class="fas fa-project-diagram mr-2"></i>End-to-End System Pipeline</h3>
+                <div class="flex flex-col md:flex-row items-center justify-center gap-0">
+                    <!-- Step 1 -->
+                    <div class="glass px-6 py-5 rounded-2xl text-center min-w-[160px] border-t-2 border-blue-500/50">
+                        <i class="fas fa-exclamation-triangle text-blue-400 text-2xl mb-3"></i>
+                        <p class="text-sm font-bold text-blue-400 uppercase tracking-wider">1. Disruption</p>
+                        <p class="text-xs text-slate-400 mt-1">Shipment Delay<br />Supplier / PO Delay</p>
+                    </div>
+                    <i class="fas fa-arrow-right text-slate-600 text-xl mx-2 hidden md:block"></i>
+                    <i class="fas fa-arrow-down text-slate-600 text-xl my-2 md:hidden"></i>
+                    <!-- Step 2 -->
+                    <div class="glass px-6 py-5 rounded-2xl text-center min-w-[160px] border-t-2 border-purple-500/50">
+                        <i class="fas fa-search text-purple-400 text-2xl mb-3"></i>
+                        <p class="text-sm font-bold text-purple-400 uppercase tracking-wider">2. SQL Detection</p>
+                        <p class="text-xs text-slate-400 mt-1">Factual Rule Check<br />Threshold Verification</p>
+                    </div>
+                    <i class="fas fa-arrow-right text-slate-600 text-xl mx-2 hidden md:block"></i>
+                    <i class="fas fa-arrow-down text-slate-600 text-xl my-2 md:hidden"></i>
+                    <!-- Step 3 -->
+                    <div class="glass px-6 py-5 rounded-2xl text-center min-w-[160px] border-t-2 border-yellow-500/50">
+                        <i class="fas fa-tools text-yellow-400 text-2xl mb-3"></i>
+                        <p class="text-sm font-bold text-yellow-400 uppercase tracking-wider">3. Tool Calls</p>
+                        <p class="text-xs text-slate-400 mt-1">Multi-Domain Query<br />15+ DB Tools</p>
+                    </div>
+                    <i class="fas fa-arrow-right text-slate-600 text-xl mx-2 hidden md:block"></i>
+                    <i class="fas fa-arrow-down text-slate-600 text-xl my-2 md:hidden"></i>
+                    <!-- Step 4 -->
+                    <div class="glass px-6 py-5 rounded-2xl text-center min-w-[160px] border-t-2 border-green-500/50">
+                        <i class="fas fa-brain text-green-400 text-2xl mb-3"></i>
+                        <p class="text-sm font-bold text-green-400 uppercase tracking-wider">4. AI Reasoning</p>
+                        <p class="text-xs text-slate-400 mt-1">Root Cause Analysis<br />Option Trade-Offs</p>
+                    </div>
+                    <i class="fas fa-arrow-right text-slate-600 text-xl mx-2 hidden md:block"></i>
+                    <i class="fas fa-arrow-down text-slate-600 text-xl my-2 md:hidden"></i>
+                    <!-- Step 5 -->
+                    <div class="glass px-6 py-5 rounded-2xl text-center min-w-[160px] border-t-2 border-orange-500/50">
+                        <i class="fas fa-user-check text-orange-400 text-2xl mb-3"></i>
+                        <p class="text-sm font-bold text-orange-400 uppercase tracking-wider">5. Human Gate</p>
+                        <p class="text-xs text-slate-400 mt-1">High-Risk Filter<br />Approve / Reject</p>
+                    </div>
+                    <i class="fas fa-arrow-right text-slate-600 text-xl mx-2 hidden md:block"></i>
+                    <i class="fas fa-arrow-down text-slate-600 text-xl my-2 md:hidden"></i>
+                    <!-- Step 6 -->
+                    <div
+                        class="bg-green-500/10 border-2 border-green-500/30 px-6 py-5 rounded-2xl text-center min-w-[160px]">
+                        <i class="fas fa-check-circle text-green-400 text-2xl mb-3"></i>
+                        <p class="text-sm font-bold text-green-400 uppercase tracking-wider">6. DB Execution</p>
+                        <p class="text-xs text-slate-400 mt-1">PostgreSQL Mutation<br />Audit Log Recorded</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SYSTEM CAPABILITIES SECTION -->
+        <section id="features" class="space-y-12">
+            <h2 class="text-5xl font-black text-center uppercase tracking-tight">System <span
+                    class="text-purple-500">Capabilities</span></h2>
+            <p class="text-slate-400 text-center max-w-3xl mx-auto text-base">Six core domain toolkits that empower the agent to investigate root causes and execute resolutions</p>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                <!-- Procurement Domain -->
+                <div class="glass p-6 rounded-2xl border-t-2 border-red-500/50">
+                    <h3 class="text-red-400 font-bold text-sm uppercase tracking-widest mb-4"><i
+                            class="fas fa-shopping-cart mr-2"></i>Procurement Tools</h3>
+                    <ul class="text-sm text-slate-300 space-y-3">
+                        <li><strong class="text-slate-100">get_supplier:</strong> Inspect vendor details & capacity</li>
+                        <li><strong class="text-slate-100">get_supplier_performance:</strong> Check historical lead times & delays</li>
+                        <li><strong class="text-slate-100">get_purchase_order:</strong> Query open PO items and delivery dates</li>
+                        <li><strong class="text-slate-100">find_alternative_supplier:</strong> Identify qualified backup suppliers</li>
+                        <li><strong class="text-slate-100">execute_supplier_switch:</strong> Reassign PO to approved alternate vendor</li>
+                    </ul>
+                </div>
+
+                <!-- Logistics Domain -->
+                <div class="glass p-6 rounded-2xl border-t-2 border-yellow-500/50">
+                    <h3 class="text-yellow-400 font-bold text-sm uppercase tracking-widest mb-4"><i
+                            class="fas fa-truck mr-2"></i>Logistics Tools</h3>
+                    <ul class="text-sm text-slate-300 space-y-3">
+                        <li><strong class="text-slate-100">get_shipment:</strong> Fetch live shipment location & carrier SLA</li>
+                        <li><strong class="text-slate-100">get_carrier:</strong> Evaluate carrier on-time delivery rates</li>
+                        <li><strong class="text-slate-100">get_route:</strong> Inspect origin, destination, and transit nodes</li>
+                        <li><strong class="text-slate-100">find_alternative_carrier:</strong> Search available express freight options</li>
+                        <li><strong class="text-slate-100">execute_shipment_reroute:</strong> Mutate route & carrier assignment in DB</li>
+                    </ul>
+                </div>
+
+                <!-- Shared Inventory Data -->
+                <div class="glass p-6 rounded-2xl border-t-2 border-green-500/50">
+                    <h3 class="text-green-400 font-bold text-sm uppercase tracking-widest mb-4"><i
+                            class="fas fa-boxes mr-2"></i>Inventory & Warehouse Tools</h3>
+                    <ul class="text-sm text-slate-300 space-y-3">
+                        <li><strong class="text-slate-100">get_inventory:</strong> Check real-time stock levels per warehouse</li>
+                        <li><strong class="text-slate-100">find_available_inventory:</strong> Locate spare stock in regional hubs</li>
+                        <li><strong class="text-slate-100">find_alternative_warehouse:</strong> Identify closest hub with capacity</li>
+                        <li><strong class="text-slate-100">calculate_business_impact:</strong> Quantify stockout and late penalty risk</li>
+                        <li><strong class="text-slate-100">execute_inventory_transfer:</strong> Transfer units directly between hubs</li>
+                    </ul>
+                </div>
+
+                <!-- Exception Detection Engine -->
+                <div class="glass p-6 rounded-2xl border-t-2 border-orange-500/50">
+                    <h3 class="text-orange-400 font-bold text-sm uppercase tracking-widest mb-4"><i
+                            class="fas fa-bolt mr-2"></i>Deterministic Detection Rules</h3>
+                    <ul class="text-sm text-slate-300 space-y-3">
+                        <li><strong class="text-slate-100">Shipment Delay:</strong> Estimated Delivery Date > Promised Customer SLA</li>
+                        <li><strong class="text-slate-100">PO Delay:</strong> Expected delivery date has passed without receipt</li>
+                        <li><strong class="text-slate-100">Inventory Stockout:</strong> Available warehouse inventory < order requirement</li>
+                        <li><strong class="text-slate-100">Supplier Bottleneck:</strong> Purchase order size > vendor available capacity</li>
+                    </ul>
+                </div>
+
+                <!-- Resolution Planner & Trade-off Scoring -->
+                <div class="glass p-6 rounded-2xl border-t-2 border-emerald-500/50">
+                    <h3 class="text-emerald-400 font-bold text-sm uppercase tracking-widest mb-4"><i
+                            class="fas fa-balance-scale mr-2"></i>Resolution Trade-Off Scoring</h3>
+                    <ul class="text-sm text-slate-300 space-y-3">
+                        <li><strong class="text-slate-100">Estimated Cost:</strong> Calculates direct intervention expense (₹)</li>
+                        <li><strong class="text-slate-100">Expected Time:</strong> Measures hours/days saved to protect SLA</li>
+                        <li><strong class="text-slate-100">Inventory Impact:</strong> Prevents depletion of donor warehouse stock</li>
+                        <li><strong class="text-slate-100">Operational Risk:</strong> Assesses risk level (Low / Medium / High)</li>
+                        <li><strong class="text-slate-100">Feasibility Score:</strong> Verifies partner availability before proposing</li>
+                    </ul>
+                </div>
+
+                <!-- Human-in-the-Loop & Audit Log -->
+                <div class="glass p-6 rounded-2xl border-t-2 border-blue-500/50">
+                    <h3 class="text-blue-400 font-bold text-sm uppercase tracking-widest mb-4"><i
+                            class="fas fa-shield-alt mr-2"></i>Approval Gate & Audit Trail</h3>
+                    <ul class="text-sm text-slate-300 space-y-3">
+                        <li><strong class="text-slate-100">High-Impact Filter:</strong> High-cost supplier switches require approval</li>
+                        <li><strong class="text-slate-100">Interactive UI Modal:</strong> Managers review reasoning and click Approve/Reject</li>
+                        <li><strong class="text-slate-100">Live DB Mutation:</strong> Executes SQL changes only after sign-off</li>
+                        <li><strong class="text-slate-100">Immutable Audit Trail:</strong> Logs timestamp, agent steps, inputs, and outputs</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- RESULTS & ANALYSIS SECTION -->
+        <section id="results" class="glass p-12 rounded-[3.5rem] border-t-4 border-blue-500">
+            <h2 class="text-5xl font-black mb-12 text-center uppercase tracking-tight">Demonstrated Scenarios & <span
+                    class="text-blue-500">Impact</span></h2>
+
+            <!-- Scenario Resolution Table -->
+            <div class="bg-black/30 p-8 rounded-2xl border border-white/5 mb-12">
+                <h3 class="text-blue-400 font-bold text-base uppercase tracking-widest mb-6"><i
+                        class="fas fa-tasks mr-2"></i>Live Scenario Resolution Summary</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-base text-left">
+                        <thead class="text-sm text-slate-400 uppercase border-b border-slate-700">
+                            <tr>
+                                <th class="py-3 px-4">Disruption Scenario</th>
+                                <th class="py-3 px-4">Domains Queried</th>
+                                <th class="py-3 px-4">Agent Recommended Action</th>
+                                <th class="py-3 px-4 text-center">Execution Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-slate-300">
+                            <tr class="border-b border-slate-800/50">
+                                <td class="py-3 px-4 font-bold text-white">1. In-Transit Shipment Delay</td>
+                                <td class="py-3 px-4 text-slate-300 text-sm">Logistics & Inventory</td>
+                                <td class="py-3 px-4 text-green-400 font-medium text-sm">Transfer stock from nearby Warehouse B</td>
+                                <td class="py-3 px-4 text-center"><span class="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-bold">Auto-Executed</span></td>
+                            </tr>
+                            <tr class="border-b border-slate-800/50">
+                                <td class="py-3 px-4 font-bold text-white">2. Supplier PO Delay</td>
+                                <td class="py-3 px-4 text-slate-300 text-sm">Procurement & Supplier</td>
+                                <td class="py-3 px-4 text-yellow-400 font-medium text-sm">Reassign order to pre-qualified Backup Supplier (V-04)</td>
+                                <td class="py-3 px-4 text-center"><span class="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-bold">Human Approved</span></td>
+                            </tr>
+                            <tr class="border-b border-slate-800/50">
+                                <td class="py-3 px-4 font-bold text-white">3. Regional Hub Stockout</td>
+                                <td class="py-3 px-4 text-slate-300 text-sm">Inventory & Orders</td>
+                                <td class="py-3 px-4 text-purple-400 font-medium text-sm">Split order fulfillment across two nearest fulfillment hubs</td>
+                                <td class="py-3 px-4 text-center"><span class="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-bold">Auto-Executed</span></td>
+                            </tr>
+                            <tr class="border-b border-slate-800/50">
+                                <td class="py-3 px-4 font-bold text-white">4. Supplier Capacity Bottleneck</td>
+                                <td class="py-3 px-4 text-slate-300 text-sm">Procurement & Logistics</td>
+                                <td class="py-3 px-4 text-blue-400 font-medium text-sm">Expedite available batch + upgrade to air priority freight</td>
+                                <td class="py-3 px-4 text-center"><span class="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-bold">Human Approved</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Key Presentation Highlights -->
+            <div class="glass p-8 rounded-2xl border border-white/5">
+                <p class="text-slate-300 text-lg leading-relaxed text-justify">
+                    <strong class="text-white text-xl">Key Presentation Takeaways:</strong><br /><br />
+                    • <strong class="text-blue-400">Rapid Investigation:</strong> Dynamic multi-agent tool execution rapidly eliminates manual cross-silo investigation bottlenecks.<br />
+                    • <strong class="text-green-400">Cross-Functional Reasoning:</strong> Queries Procurement, Logistics, and Inventory tables together to find cost-effective alternative solutions.<br />
+                    • <strong class="text-yellow-400">Operational Safety:</strong> Routine low-risk tasks execute automatically, while high-impact actions mandate human manager approval.<br />
+                    • <strong class="text-purple-400">Real Enterprise Value:</strong> Performs live transactional database mutations with complete timestamped audit logging.
+                </p>
+            </div>
+        </section>
+
+        <!-- FUTURE SCOPE SECTION -->
+        <section class="space-y-10">
+            <h2 class="text-5xl font-black text-center uppercase tracking-tight">Future <span
+                    class="text-emerald-500">Scope</span></h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div
+                    class="glass p-8 rounded-3xl border-t-2 border-emerald-500/50 hover:border-emerald-400/80 transition-all duration-300">
+                    <div class="flex items-center gap-3 mb-5">
+                        <div class="bg-emerald-500/20 p-3 rounded-xl"><i
+                                class="fas fa-chart-line text-emerald-400 text-xl"></i></div>
+                        <h3 class="font-bold text-base text-emerald-400 uppercase tracking-wider">Predictive Stockout System
+                        </h3>
+                    </div>
+                    <p class="text-base text-slate-300 leading-relaxed">Develop an <strong class="text-white">AI-driven stockout prediction model</strong> that forecasts inventory depletion and stockout risks before thresholds are breached, using historical order velocity, lead-time variances, and consumption patterns to trigger proactive reorders.</p>
+                </div>
+                <div
+                    class="glass p-8 rounded-3xl border-t-2 border-blue-500/50 hover:border-blue-400/80 transition-all duration-300">
+                    <div class="flex items-center gap-3 mb-5">
+                        <div class="bg-blue-500/20 p-3 rounded-xl"><i class="fas fa-award text-blue-400 text-xl"></i>
+                        </div>
+                        <h3 class="font-bold text-base text-blue-400 uppercase tracking-wider">Supplier Reliability Scoring</h3>
+                    </div>
+                    <p class="text-base text-slate-300 leading-relaxed">Build a dynamic <strong class="text-white">supplier performance & reliability engine</strong> that continuously evaluates vendors on delivery consistency, delay frequency, and SLA adherence to intelligently rank secondary suppliers and prevent bottlenecks.</p>
+                </div>
+                <div
+                    class="glass p-8 rounded-3xl border-t-2 border-purple-500/50 hover:border-purple-400/80 transition-all duration-300">
+                    <div class="flex items-center gap-3 mb-5">
+                        <div class="bg-purple-500/20 p-3 rounded-xl"><i
+                                class="fas fa-wallet text-purple-400 text-xl"></i></div>
+                        <h3 class="font-bold text-base text-purple-400 uppercase tracking-wider">Buyer Expenditure Optimization
+                        </h3>
+                    </div>
+                    <p class="text-base text-slate-300 leading-relaxed">Implement an intelligent <strong class="text-white">buyer expenditure reduction engine</strong> analyzing current spending and historical purchasing data to recommend optimal volume discounts, cost-effective routing, and consolidated procurement strategies.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TEAM SECTION -->
+        <section id="team" class="text-center pt-10 border-t border-slate-900">
+            <h2 class="text-sm font-black text-slate-500 uppercase tracking-[0.5em] mb-12">Academic Credits</h2>
+            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left">
+                <!-- Project & Student Card -->
+                <div class="glass px-10 py-10 rounded-[2rem] border-b-4 border-slate-700 w-full flex flex-col justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest">Project</p>
+                        <p class="font-black text-3xl text-slate-100 mb-6">RELAY Agent Team</p>
+                        
+                        <div class="border-t border-white/10 pt-5">
+                            <p class="text-xs font-bold text-blue-400 uppercase tracking-widest mb-1">Student</p>
+                            <p class="font-black text-2xl text-white">Aaryav Krishna</p>
+                            <p class="text-sm text-slate-300 font-mono mt-2">Registration No: <span class="text-white font-bold">2427030754</span> &bull; Section K</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 font-mono mt-6 pt-4 border-t border-white/5 uppercase tracking-wider">Project Code: RELAY-SCEA-2026</p>
+                </div>
+
+                <!-- Faculty Guide & Department Card -->
+                <div class="glass px-10 py-10 rounded-[2rem] border-b-4 border-blue-600 w-full flex flex-col justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-blue-500 mb-2 uppercase tracking-widest">Department & Institution</p>
+                        
+                        <div class="mb-5">
+                            <p class="text-xs text-slate-400 uppercase tracking-widest mb-1">Faculty Guide</p>
+                            <p class="font-black text-2xl text-slate-100">Ms. Kirti Paliwal</p>
+                        </div>
+
+                        <div class="border-t border-white/10 pt-4">
+                            <p class="text-xs text-slate-400 uppercase tracking-widest mb-1">Department</p>
+                            <p class="font-bold text-xl text-slate-200">Department of CSE</p>
+                        </div>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-white/5">
+                        <p class="text-base font-bold text-blue-400 uppercase tracking-wider">Manipal University Jaipur</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="py-12 text-center bg-black/40 border-t border-slate-900">
+        <p class="text-slate-600 text-sm font-bold tracking-[0.3em] uppercase mb-2">Manipal University Jaipur</p>
+        <p class="text-slate-500 text-xs font-medium tracking-[0.2em] uppercase opacity-50">Department of Computer
+            Science & Engineering • 2026</p>
+    </footer>
+
+    <script>
+        // STOPWATCH LOGIC
+        let startTime = null;
+        let timer = null;
+        function startTimer() {
+            console.log('Stopwatch started');
+            startTime = Date.now();
+            timer = setInterval(() => {
+                let elapsed = Math.floor((Date.now() - startTime) / 1000);
+                let m = Math.floor(elapsed / 60);
+                let s = elapsed % 60;
+                let displayText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                document.getElementById('displayTime').innerText = displayText;
+            }, 100); // Update every 100ms for smoothness
+        }
+
+        // Start stopwatch when DOM is ready
+        document.addEventListener('DOMContentLoaded', function () {
+            startTimer();
+        });
+
+        // Fallback if page is already loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', startTimer);
+        } else {
+            startTimer();
+        }
+    </script>
+</body>
+
+</html>

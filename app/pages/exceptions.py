@@ -176,13 +176,37 @@ def render_exceptions_page(role: str = "BUYER") -> None:
 # Stage 0 — perceived exception
 # ---------------------------------------------------------------------------
 
+def _ml_risk_badge(exc: Dict[str, Any]) -> str:
+    """Extract and render an ML Risk Score badge from the exception description."""
+    import re
+    desc = str(exc.get("description") or "")
+    match = re.search(r"ML Delay Risk: (HIGH|MEDIUM|LOW) \(([0-9.]+)%, model=(\w+)\)", desc)
+    if not match:
+        return ""
+    label, pct, model = match.group(1), match.group(2), match.group(3)
+    tone = {"HIGH": "critical", "MEDIUM": "serious", "LOW": "good"}.get(label, "info")
+    color_map = {"HIGH": "#ef4444", "MEDIUM": "#f59e0b", "LOW": "#22c55e"}
+    color = color_map.get(label, "#6b7280")
+    return (
+        f'<div style="margin:.6rem 0 .2rem;display:flex;align-items:center;gap:.5rem">'
+        f'<span style="font-size:.72rem;font-weight:600;color:#6b7280;letter-spacing:.05em">ML DELAY RISK</span>'
+        f'<span style="background:{color}18;color:{color};border:1px solid {color}40;'
+        f'border-radius:6px;padding:2px 10px;font-size:.78rem;font-weight:700">'
+        f'{label} &nbsp; {pct}%</span>'
+        f'<span style="font-size:.70rem;color:#9ca3af">via {model} model</span>'
+        f'</div>'
+    )
+
+
 def _overview_card(exc: Dict[str, Any]) -> None:
+    ml_badge = _ml_risk_badge(exc)
     st.markdown(
         '<div class="card"><div class="card-head">'
         f'<div class="card-title">{exc.get("title")}</div>'
         f'<div>{badge(exc.get("severity"))} &nbsp; {badge(exc.get("status"))}</div>'
         '</div><div class="card-body">'
-        f'<div class="callout-body" style="margin-bottom:.4rem">{exc.get("description")}</div>'
+        + (ml_badge if ml_badge else "")
+        + f'<div class="callout-body" style="margin-top:.4rem;margin-bottom:.4rem">{exc.get("description")}</div>'
         + detail_grid(
             [
                 ("Exception code", mono(exc.get("exception_code"))),
